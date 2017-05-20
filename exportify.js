@@ -1,3 +1,7 @@
+
+
+///////////////////////////////
+
 window.Helpers = {
   authorize: function() {
     var client_id = this.getQueryParam('app_client_id');
@@ -265,8 +269,19 @@ var PlaylistsExporter = {
         }
 
         $(playlists).each(function(i, playlist) {
-          playlistFileNames.push(PlaylistExporter.fileName(playlist));
-          playlistExports.push(PlaylistExporter.csvData(access_token, playlist));
+          if ((i > 0) && (i < 101))  // CSP - test limiting batch saving. 100 seems to be a good number.          
+          { 
+            playlistFileNames.push(PlaylistExporter.fileName(playlist));
+            playlistExports.push(PlaylistExporter.csvData(access_token, playlist));
+          }
+          
+          // now wait 2 sec
+          //var sec1 = new Date().getTime() / 1000;
+          //var sec2 = new Date().getTime() / 1000;
+          //while (sec2 - sec1 < 2) {
+          //  sec2 = new Date().getTime() / 1000;
+          //  console.log("waiting: " + i);
+          //}
         });
 
         return $.when.apply($, playlistExports);
