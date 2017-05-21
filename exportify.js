@@ -27,6 +27,8 @@ window.Helpers = {
   },
 
   apiCall: function(url, access_token) {
+    //console.log("ajax:" + url);
+    //alert("ajax: " + url);
     return $.ajax({
       url: url,
       headers: {
@@ -127,7 +129,7 @@ var PlaylistTable = React.createClass({
                 <th style={{width: "100px"}}>Tracks</th>
                 <th style={{width: "120px"}}>Public?</th>
                 <th style={{width: "120px"}}>Collaborative?</th>
-                <th style={{width: "100px"}} className="text-right"><button className="btn btn-default btn-xs" type="submit" onClick={this.exportPlaylists}><span className="fa fa-file-archive-o"></span> Export All</button></th>
+                <th style={{width: "100px"}} className="text-right"><button className="btn btn-default btn-xs" type="submit" onClick={this.exportPlaylists}><span className="fa fa-file-archive-o"></span> Export All</button><input id="plMin" placeholder="min" /><input id="plMax" placeholder="max" /></th>
               </tr>
             </thead>
             <tbody>
@@ -269,8 +271,11 @@ var PlaylistsExporter = {
         }
 
         $(playlists).each(function(i, playlist) {
-          if ((i > 0) && (i < 101))  // CSP - test limiting batch saving. 100 seems to be a good number.          
+          var minVal = document.getElementById("plMin").value;
+          var maxVal = document.getElementById("plMax").value;
+          if ((i >= minVal) && (i <= maxVal))  // CSP - test limiting batch saving. 100 seems to be a good number.          
           { 
+            //console.log("playlist:" + JSON.stringify(playlist));
             playlistFileNames.push(PlaylistExporter.fileName(playlist));
             playlistExports.push(PlaylistExporter.csvData(access_token, playlist));
           }
@@ -283,6 +288,8 @@ var PlaylistsExporter = {
           //  console.log("waiting: " + i);
           //}
         });
+        
+        //throw new Error();  // CSP - to exit script early
 
         return $.when.apply($, playlistExports);
       }).then(function() {
