@@ -1,6 +1,10 @@
 
 
 ///////////////////////////////
+function doDelay(ms) {
+    var unixtime_ms = new Date().getTime();
+    while(new Date().getTime() < unixtime_ms + ms) {}
+}
 
 window.Helpers = {
   authorize: function() {
@@ -107,8 +111,19 @@ var PlaylistTable = React.createClass({
     }.bind(this))
   },
 
+  timerExpire: function(ndx) {
+    console.log("CALLING timerExpire()!!!!!");
+    PlaylistsExporter.export(this.props.access_token, ndx);
+    if ((ndx+1) < this.state.playlistCount)
+      setTimeout(this.timerExpire.bind(null, ndx+1), 1000);
+  },
+   
   exportPlaylists: function() {
-    PlaylistsExporter.export(this.props.access_token, this.state.playlistCount);
+    setTimeout(this.timerExpire.bind(null, 0), 1000);
+    
+    //for (var cnt=0; cnt < this.state.playlistCount; cnt++)
+    //  PlaylistsExporter.export(this.props.access_token, cnt);
+      //PlaylistsExporter.export(this.props.access_token, this.state.playlistCount);
   },
 
   componentDidMount: function() {
@@ -170,18 +185,22 @@ var PlaylistRow = React.createClass({
 
   render: function() {
     playlist = this.props.playlist
-
-    return (
-      <tr key={this.props.key}>
-        <td>{this.renderIcon(playlist)}</td>
-        <td><a href={playlist.uri}>{playlist.name}</a></td>
-        <td><a href={playlist.owner.uri}>{playlist.owner.id}</a></td>
-        <td>{playlist.tracks.total}</td>
-        <td>{this.renderTickCross(playlist.public)}</td>
-        <td>{this.renderTickCross(playlist.collaborative)}</td>
-        <td className="text-right"><button className="btn btn-default btn-xs btn-success" type="submit" onClick={this.exportPlaylist}><span className="glyphicon glyphicon-save"></span> Export</button></td>
-      </tr>
-    );
+    //console.log("playlist=" + JSON.stringify(playlist));
+    
+    if (playlist.owner == null)
+      return null   
+    else 
+      return (
+        <tr key={this.props.key}>
+          <td>{this.renderIcon(playlist)}</td>
+          <td><a href={playlist.uri}>{playlist.name}</a></td>
+          <td><a href={playlist.owner.uri}>{playlist.owner.id}</a></td>
+          <td>{playlist.tracks.total}</td>
+          <td>{this.renderTickCross(playlist.public)}</td>
+          <td>{this.renderTickCross(playlist.collaborative)}</td>
+          <td className="text-right"><button className="btn btn-default btn-xs btn-success" type="submit" onClick={this.exportPlaylist}><span className="glyphicon glyphicon-save"></span> Export</button></td>
+        </tr>
+      );
   }
 });
 
@@ -244,14 +263,17 @@ var PlaylistsExporter = {
       ];
 
       // Add other playlists
-      for (var offset = 0; offset < playlistCount; offset = offset + limit) {
+      //for (var offset = 0; offset < playlistCount; offset = offset + limit) {
+        var offset = playlistCount;  // ADDED BY CSP
         var url = "https://api.spotify.com/v1/users/" + userId + "/playlists";
-        requests.push(
-          window.Helpers.apiCall(url + '?offset=' + offset + '&limit=' + limit, access_token)
+        requests.push(          window.Helpers.apiCall(url + '?offset=' + offset + '&limit=' + 1, access_token)
+        //requests.push(          window.Helpers.apiCall(url + '?offset=' + offset + '&limit=' + limit, access_token)
+          
         )
-      }
 
-      $.when.apply($, requests).then(function() {
+      //}
+
+      $.when.apply($, requests).then( function() {
         var playlists = [];
         var playlistExports = [];
 
@@ -270,29 +292,28 @@ var PlaylistsExporter = {
           playlists = arguments[0].items
         }
 
+       
         $(playlists).each(function(i, playlist) {
-          var minVal = document.getElementById("plMin").value;
-          var maxVal = document.getElementById("plMax").value;
-          if ((i >= minVal) && (i <= maxVal))  // CSP - test limiting batch saving. 100 seems to be a good number.          
-          { 
-            //console.log("playlist:" + JSON.stringify(playlist));
+          //var minVal = document.getElementById("plMin").value;
+          //var maxVal = document.getElementById("plMax").value;
+          //if ((i >= minVal) && (i <= maxVal))  // CSP - test limiting batch saving. 100 seems to be a good number.          
+          //{ 
+            console.log("playlist " + i +":" + JSON.stringify(playlist));
             playlistFileNames.push(PlaylistExporter.fileName(playlist));
             playlistExports.push(PlaylistExporter.csvData(access_token, playlist));
-          }
-          
-          // now wait 2 sec
-          //var sec1 = new Date().getTime() / 1000;
-          //var sec2 = new Date().getTime() / 1000;
-          //while (sec2 - sec1 < 2) {
-          //  sec2 = new Date().getTime() / 1000;
-          //  console.log("waiting: " + i);
+            //doDelay(3000);
+            
           //}
         });
         
+        
+        
         //throw new Error();  // CSP - to exit script early
+        console.log("returning!");
 
         return $.when.apply($, playlistExports);
       }).then(function() {
+        console.log("making zip file!");
         var zip = new JSZip();
         var responses = [];
 
@@ -301,7 +322,7 @@ var PlaylistsExporter = {
         });
 
         var content = zip.generate({ type: "blob" });
-        saveAs(content, "spotify_playlists.zip");
+        saveAs(content, "spotify_playlist_" + playlistFileNames[1] + ".zip");
       });
     });
   }
@@ -309,7 +330,7 @@ var PlaylistsExporter = {
 
 // Handles exporting a single playlist as a CSV file
 var PlaylistExporter = {
-  export: function(access_token, playlist) {
+  export: function(access_token, playlist) {    
     this.csvData(access_token, playlist).then(function(data) {
       var blob = new Blob(["\uFEFF" + data], { type: "text/csv;charset=utf-8" });
       saveAs(blob, this.fileName(playlist));
@@ -319,11 +340,16 @@ var PlaylistExporter = {
   csvData: function(access_token, playlist) {
     var requests = [];
     var limit = 100;
+    
+    if (playlist.name == "Starred")
+      return;
 
     for (var offset = 0; offset < playlist.tracks.total; offset = offset + limit) {
       requests.push(
         window.Helpers.apiCall(playlist.tracks.href.split('?')[0] + '?offset=' + offset + '&limit=' + limit, access_token)
       )
+      console.log("REQ TRACKS FOR PLAYLIST " + playlist.name);
+      doDelay(1000);
     }
 
     return $.when.apply($, requests).then(function() {
@@ -340,7 +366,8 @@ var PlaylistExporter = {
 
       var tracks = responses.map(function(response) {
         return response.items.map(function(item) {
-          return [
+          console.log("TRACK= " + item.track.name);
+          return [         
             item.track.uri,
             item.track.name,
             item.track.artists.map(function(artist) { return artist.name }).join(', '),
