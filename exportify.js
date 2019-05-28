@@ -1,4 +1,14 @@
+// NOTE: this app uses Spotify's 'Implicit Grant' authorization flow.
 
+// from https://developer.spotify.com/documentation/web-api/ 
+//"Rate Limiting enables Web API to share access bandwidth to its resources equally across all users.
+//Rate limiting is applied as per application based on Client ID, and regardless of the number of users who use the application simultaneously.""
+
+// Due to this fact, if you had multiple users logged in using the same client ID, there combined usage would be used measure against the rate limit. The 
+// problem is, when the rate limit is reached and the 'try again in X seconds' message is returned to client(s), I would guess each client will get the same wait time,
+// and will probably end up all sending requests at the same time when timeout expires. Probably a good idea would be to have the server keep track of how many users 
+// are currently logged in, and when the client gets a wait time message, send it to the server. The server can then keep track of the times, and notify the client when 
+// it's OK to request again. As a simlper solution for the time being, just have the clients wait for a longer period of time than the wait messages specifies (2x, 5x, 10x?)
 
 ///////////////////////////////
 function doDelay(ms) {
@@ -44,6 +54,7 @@ window.Helpers = {
         window.location = window.location.href.split('#')[0]
       } else if (jqXHR.status == 429) {
         // API Rate-limiting encountered
+        console.log("jqXHR.responseText=" + JSON.stringify(jqXHR.responseText));
         window.location = window.location.href.split('#')[0] + '?rate_limit_message=true'
       } else {
         // Otherwise report the error so user can raise an issue
@@ -298,7 +309,8 @@ var PlaylistsExporter = {
           //var maxVal = document.getElementById("plMax").value;
           //if ((i >= minVal) && (i <= maxVal))  // CSP - test limiting batch saving. 100 seems to be a good number.          
           //{ 
-            console.log("playlist " + i +":" + JSON.stringify(playlist));
+            //console.log("playlist " + i +":" + JSON.stringify(playlist));
+            console.log("playlist " + i +":" + JSON.stringify(playlist.name));
             playlistFileNames.push(PlaylistExporter.fileName(playlist));
             playlistExports.push(PlaylistExporter.csvData(access_token, playlist));
             //doDelay(3000);
@@ -348,7 +360,7 @@ var PlaylistExporter = {
       requests.push(
         window.Helpers.apiCall(playlist.tracks.href.split('?')[0] + '?offset=' + offset + '&limit=' + limit, access_token)
       )
-      console.log("REQ TRACKS FOR PLAYLIST " + playlist.name);
+      //console.log("REQ TRACKS FOR PLAYLIST " + playlist.name);
       doDelay(1000);
     }
 
@@ -366,7 +378,7 @@ var PlaylistExporter = {
 
       var tracks = responses.map(function(response) {
         return response.items.map(function(item) {
-          console.log("TRACK= " + item.track.name);
+          //console.log("TRACK= " + item.track.name);
           return [         
             item.track.uri,
             item.track.name,
@@ -411,10 +423,74 @@ var PlaylistExporter = {
   }
 }
 
+
+////////////////////////////////////////////////////////////////////////////////////
+var userIDGlobal;
+var accessTokenGlobal;
+
+function getUserId(access_token) {  
+  var url = "https://api.spotify.com/v1/me";
+  var retVal;
+    $.ajax({
+      url: url,
+      headers: {
+        'Authorization': 'Bearer ' + access_token
+      }
+    })
+    .done(function(data) {
+        console.log("data=" + JSON.stringify(data));
+      userIDGlobal = data.id;
+      getPlaylistsList(accessTokenGlobal,userIDGlobal);      
+    }) 
+    .fail(function (jqXHR, textStatus) {
+        if (jqXHR.status == 401) {
+          // Return to home page after auth token expiry
+          window.location = window.location.href.split('#')[0]
+        } else if (jqXHR.status == 429) {
+          // API Rate-limiting encountered
+          console.log("jqXHR.responseText=" + JSON.stringify(jqXHR.responseText));
+          window.location = window.location.href.split('#')[0] + '?rate_limit_message=true'
+        } else {
+          // Otherwise report the error so user can raise an issue
+          alert(jqXHR.responseText);
+        }
+      })
+  
+}
+
+function getPlaylistsList(access_token, userId) {
+  var url = "https://api.spotify.com/v1/users/" + userId + "/playlists";
+  var retVal = $.ajax({
+      url: url,
+      headers: {
+        'Authorization': 'Bearer ' + access_token
+      }
+    })
+    .done(function(data) {
+        console.log("data=" + JSON.stringify(data));
+    })  
+    .fail(function (jqXHR, textStatus) {
+        if (jqXHR.status == 401) {
+          // Return to home page after auth token expiry
+          window.location = window.location.href.split('#')[0]
+        } else if (jqXHR.status == 429) {
+          // API Rate-limiting encountered
+          console.log("jqXHR.responseText=" + JSON.stringify(jqXHR.responseText));
+          window.location = window.location.href.split('#')[0] + '?rate_limit_message=true'
+        } else {
+          // Otherwise report the error so user can raise an issue
+          alert(jqXHR.responseText);
+        }
+      })
+
+}
+//////////////////////////////////////////////////////////////////////////////////
+
+
 $(function() {
   var vars = window.location.hash.substring(1).split('&');
   var key = {};
-  for (i=0; i<vars.length; i++) {
+  for (var i=0; i<vars.length; i++) {
     var tmp = vars[i].split('=');
     key[tmp[0]] = tmp[1];
   }
@@ -425,6 +501,8 @@ $(function() {
   } else if (typeof key['access_token'] === 'undefined') {
     $('#loginButton').css('display', 'inline-block')
   } else {
-    React.render(<PlaylistTable access_token={key['access_token']} />, playlistsContainer);
+    //React.render(<PlaylistTable access_token={key['access_token']} />, playlistsContainer);
+    accessTokenGlobal = key['access_token'];
+    userIDGlobal = getUserId(accessTokenGlobal);
   }
 });
