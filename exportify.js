@@ -428,6 +428,7 @@ var PlaylistExporter = {
 var userIDGlobal;
 var accessTokenGlobal;
 var playlistsGlobal = [];
+var tracksGlobal = [];
 var playlistCountGlobal = 0;
 var totalTracks = 0;
 var tempGlobal;
@@ -512,22 +513,80 @@ function getPlaylistsList(access_token, userId, offset) {
 
 }
 
+function csvData() {
+        //var tracks = responses.map(function(response) {
+        //return response.items.map(function(item) {
+  
+        //console.log("csvData called!");
+        //return;
+      
+        //console.log("tracksGlobal (in csvData)=" + JSON.stringify(tracksGlobal));
+        //tempGlobal = tracksGlobal;
+        var tracks = tracksGlobal.map(function(item) {
+  
+  
+          //console.log("TRACK= " + item.track.name);
+          return [         
+            item.track.uri,
+            item.track.name,
+            item.track.artists.map(function(artist) { return artist.name }).join(', '),
+            item.track.album.name,
+            item.track.disc_number,
+            item.track.track_number,
+            item.track.duration_ms,
+            item.added_by == null ? '' : item.added_by.uri,
+            item.added_at
+          ].map(function(track) { return '"' + track + '"'; })
+        });
+  
+        //console.log("csvData=" + JSON.stringify(tracks));
+  
+        // Flatten the array of pages
+        //tracks = $.map(tracks, function(n) { return n })
+
+        tracks.unshift([
+          "Spotify URI",
+          "Track Name",
+          "Artist Name",
+          "Album Name",
+          "Disc Number",
+          "Track Number",
+          "Track Duration (ms)",
+          "Added By",
+          "Added At"
+        ]);
+
+        var csvContent = '';
+        tracks.forEach(function(infoArray, index){
+          console.log("infoArray=" + JSON.stringify(infoArray));
+          var dataString = infoArray.join(",");
+          csvContent += index < tracks.length ? dataString+ "\n" : dataString;
+        });
+
+        console.log("csvContent=" + JSON.stringify(csvContent));
+        //return csvContent;     
+
+      //});
+  
+   ///////////////////////////////////////
+      console.log("making zip file!");
+      var zip = new JSZip();
+      var responses = [];
+
+      //csvContent.each(function(i, response) {
+        zip.file("plistname", csvContent)  //response)
+      //});
+
+      var content = zip.generate({ type: "blob" });
+      saveAs(content, "spotify_playlist_" + "plistname" + ".zip");
+}
+
 function timerExpire(access_token, ndx, offset) {
     var limit = 100;
     console.log("CALLING timerExpire()!!!!!");
     //PlaylistsExporter.export(this.props.access_token, access_token, ndx);
     getPlaylist(access_token, ndx, offset);
-    console.log("totalTracks=" + totalTracks);
-    
-    offset = offset + limit;   // track offset within playlist
-    if (offset < totalTracks) 
-      setTimeout(timerExpire.bind(null, access_token, ndx, offset), 1000);  // continue getting tracks from current playlist
-    else {
-      if ((ndx+1) < playlistCountGlobal) {
-        totalTracks = 0;
-        setTimeout(timerExpire.bind(null, access_token, ndx+1, 0), 1000);  // next playlist
-      }  
-    }  
+
 }
 
 function getPlaylist(access_token, ndx, offset) {
@@ -562,9 +621,30 @@ function getPlaylist(access_token, ndx, offset) {
         // will need to call api to get next page of tracks if more than 100
         console.log("plist name = " + data.name);
         console.log("numTracks = " + numTracks);
+        //console.log("data.items = " + data.items);
+        tracksGlobal = tracksGlobal.concat(data.items);   // merge arrays
         for (var i=0; i<numTracks; i++) {          
           console.log("track=" + data.items[i].track.track_number + " " + data.items[i].track.name);
         }  
+        //////////////////////////////////////
+        console.log("totalTracks=" + totalTracks);
+    
+        offset = offset + limit;   // track offset within playlist
+        if (offset < totalTracks) 
+          setTimeout(timerExpire.bind(null, access_token, ndx, offset), 1000);  // continue getting tracks from current playlist
+        else {
+          // create csv and zip for finished playlist.
+          totalTracks = 0;
+          //console.log("tracksGlobal=" + JSON.stringify(tracksGlobal));
+          csvData();
+          tracksGlobal = [];
+          
+          // check to see if there is a next playlist
+          if ((ndx+1) < playlistCountGlobal) {            
+            setTimeout(timerExpire.bind(null, access_token, ndx+1, 0), 1000);  // next playlist
+          }  
+        }  
+        //////////////////////////////////////
       
     })  
     .fail(function (jqXHR, textStatus) {
@@ -586,7 +666,7 @@ function getPlaylist(access_token, ndx, offset) {
       })
   
   doDelay(1000);
-  return(totalTracks);
+  
 
 }
 
