@@ -429,6 +429,8 @@ var userIDGlobal;
 var accessTokenGlobal;
 var playlistsGlobal = [];
 var playlistCountGlobal = 0;
+var tempGlobal;
+var ratelimitGlobal;
 
 function getUserId(access_token) {  
   var url = "https://api.spotify.com/v1/me";
@@ -481,15 +483,21 @@ function getPlaylistsList(access_token, userId, offset) {
         else {
           // now get all individual playlist info by index
           console.log("playlistCountGlobal=" + playlistCountGlobal);
-          getPlaylist(access_token, 1);
+          for (var i=0; i<playlistCountGlobal; i++) {
+            console.log("playlist name=" + playlistsGlobal[i].name);
+            getPlaylist(access_token, i);
+            
+            //return;
+          }
+         
         }  
     })  
     .fail(function (jqXHR, textStatus) {
         if (jqXHR.status == 401) {
           // Return to home page after auth token expiry
           window.location = window.location.href.split('#')[0]
-        } else if (jqXHR.status == 429) {
-          // API Rate-limiting encountered
+        } else if (jqXHR.status == 429) {          // API Rate-limiting encountered
+          
           console.log("jqXHR.responseText=" + JSON.stringify(jqXHR.responseText));
           window.location = window.location.href.split('#')[0] + '?rate_limit_message=true'
         } else {
@@ -510,21 +518,40 @@ function getPlaylist(access_token, ndx) {
       }
     })
     .done(function(data) {
-        console.log("data=" + JSON.stringify(data));
+        tempGlobal = data;
+        //console.log("data=" + JSON.stringify(data));
+        var totalTracks = data.total;  // number of tracks in all pages
+        var numTracks; // number of tracks in this page
+      
+        if (totalTracks > 100)
+          numTracks = 100;
+        else
+          numTracks = totalTracks;
+        // will need to call api to get next page of tracks if more than 100
+        for (var i=0; i<numTracks; i++) {
+          console.log("numTracks = " + numTracks);
+          console.log("track=" + data.items[0].track.track_number + " " + data.items[0].track.name);
+        }
     })  
     .fail(function (jqXHR, textStatus) {
         if (jqXHR.status == 401) {
           // Return to home page after auth token expiry
           window.location = window.location.href.split('#')[0]
         } else if (jqXHR.status == 429) {
+          ratelimitGlobal = jqXHR;
           // API Rate-limiting encountered
-          console.log("jqXHR.responseText=" + JSON.stringify(jqXHR.responseText));
-          window.location = window.location.href.split('#')[0] + '?rate_limit_message=true'
+          var retryVal = jqXHR.getResponseHeader('Retry-After');
+          console.log("retryVal=" + retryVal);
+          doDelay(retryVal * 1000);  // waiting the designated amount doesn't seem to guarantee next call will not be rate-limited???
+          //console.log("jqXHR.responseText=" + JSON.stringify(jqXHR.responseText));
+          //CSP window.location = window.location.href.split('#')[0] + '?rate_limit_message=true'
         } else {
           // Otherwise report the error so user can raise an issue
           alert(jqXHR.responseText);
         }
       })
+  
+  doDelay(1000);
 
 }
 
