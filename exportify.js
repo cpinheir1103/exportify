@@ -427,6 +427,8 @@ var PlaylistExporter = {
 ////////////////////////////////////////////////////////////////////////////////////
 var userIDGlobal;
 var accessTokenGlobal;
+var playlistsGlobal = [];
+var playlistCountGlobal = 0;
 
 function getUserId(access_token) {  
   var url = "https://api.spotify.com/v1/me";
@@ -438,9 +440,10 @@ function getUserId(access_token) {
       }
     })
     .done(function(data) {
-        console.log("data=" + JSON.stringify(data));
+      console.log("data=" + JSON.stringify(data));
       userIDGlobal = data.id;
-      getPlaylistsList(accessTokenGlobal,userIDGlobal);      
+      //playlistCountGlobal = data.total;
+      getPlaylistsList(accessTokenGlobal,userIDGlobal,0);      
     }) 
     .fail(function (jqXHR, textStatus) {
         if (jqXHR.status == 401) {
@@ -458,8 +461,48 @@ function getUserId(access_token) {
   
 }
 
-function getPlaylistsList(access_token, userId) {
-  var url = "https://api.spotify.com/v1/users/" + userId + "/playlists";
+function getPlaylistsList(access_token, userId, offset) {
+  // have to loop, as max response is 50 playlists at a time.
+  var limit = 50;      
+  var url = "https://api.spotify.com/v1/users/" + userId + "/playlists?offset=" + offset + '&limit=' + limit;  
+  var retVal = $.ajax({
+      url: url,
+      headers: {
+        'Authorization': 'Bearer ' + access_token
+      }
+    })
+    .done(function(data) {
+        playlistsGlobal = playlistsGlobal.concat(data.items);   // merge arrays
+        console.log("data=" + JSON.stringify(data));
+        playlistCountGlobal = playlistCountGlobal + data.items.length;
+        // call recursively until no more playlists left
+        if (data.items.length == limit)
+          getPlaylistsList(access_token, userId, offset + limit) ;
+        else {
+          // now get all individual playlist info by index
+          console.log("playlistCountGlobal=" + playlistCountGlobal);
+          getPlaylist(access_token, 1);
+        }  
+    })  
+    .fail(function (jqXHR, textStatus) {
+        if (jqXHR.status == 401) {
+          // Return to home page after auth token expiry
+          window.location = window.location.href.split('#')[0]
+        } else if (jqXHR.status == 429) {
+          // API Rate-limiting encountered
+          console.log("jqXHR.responseText=" + JSON.stringify(jqXHR.responseText));
+          window.location = window.location.href.split('#')[0] + '?rate_limit_message=true'
+        } else {
+          // Otherwise report the error so user can raise an issue
+          alert(jqXHR.responseText);
+        }
+      })
+
+}
+
+function getPlaylist(access_token, ndx) {
+  
+  var url = playlistsGlobal[ndx].tracks.href.split('?')[0];                      
   var retVal = $.ajax({
       url: url,
       headers: {
@@ -484,6 +527,7 @@ function getPlaylistsList(access_token, userId) {
       })
 
 }
+
 //////////////////////////////////////////////////////////////////////////////////
 
 
