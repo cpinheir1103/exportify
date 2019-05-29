@@ -432,6 +432,14 @@ var playlistCountGlobal = 0;
 var tempGlobal;
 var ratelimitGlobal;
 
+function timerExpire(access_token, ndx) {
+    console.log("CALLING timerExpire()!!!!!");
+    //PlaylistsExporter.export(this.props.access_token, access_token, ndx);
+    getPlaylist(access_token, ndx);
+    if ((ndx+1) < playlistCountGlobal)
+      setTimeout(timerExpire.bind(null, access_token, ndx+1), 1000);
+}
+
 function getUserId(access_token) {  
   var url = "https://api.spotify.com/v1/me";
   var retVal;
@@ -485,10 +493,11 @@ function getPlaylistsList(access_token, userId, offset) {
           console.log("playlistCountGlobal=" + playlistCountGlobal);
           for (var i=0; i<playlistCountGlobal; i++) {
             console.log("playlist name=" + playlistsGlobal[i].name);
-            getPlaylist(access_token, i);
-            
+            //getPlaylist(access_token, i);            
             //return;
           }
+          
+          setTimeout(timerExpire.bind(null, accessTokenGlobal, 0), 1000);
          
         }  
     })  
@@ -528,9 +537,10 @@ function getPlaylist(access_token, ndx) {
         else
           numTracks = totalTracks;
         // will need to call api to get next page of tracks if more than 100
-        for (var i=0; i<numTracks; i++) {
-          console.log("numTracks = " + numTracks);
-          console.log("track=" + data.items[0].track.track_number + " " + data.items[0].track.name);
+        console.log("plist name = " + data.name);
+        console.log("numTracks = " + numTracks);
+        for (var i=0; i<numTracks; i++) {          
+          console.log("track=" + data.items[i].track.track_number + " " + data.items[i].track.name);
         }
     })  
     .fail(function (jqXHR, textStatus) {
