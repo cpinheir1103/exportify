@@ -429,16 +429,11 @@ var userIDGlobal;
 var accessTokenGlobal;
 var playlistsGlobal = [];
 var playlistCountGlobal = 0;
+var totalTracks = 0;
 var tempGlobal;
 var ratelimitGlobal;
 
-function timerExpire(access_token, ndx) {
-    console.log("CALLING timerExpire()!!!!!");
-    //PlaylistsExporter.export(this.props.access_token, access_token, ndx);
-    getPlaylist(access_token, ndx);
-    if ((ndx+1) < playlistCountGlobal)
-      setTimeout(timerExpire.bind(null, access_token, ndx+1), 1000);
-}
+
 
 function getUserId(access_token) {  
   var url = "https://api.spotify.com/v1/me";
@@ -497,7 +492,7 @@ function getPlaylistsList(access_token, userId, offset) {
             //return;
           }
           
-          setTimeout(timerExpire.bind(null, accessTokenGlobal, 0), 1000);
+          setTimeout(timerExpire.bind(null, accessTokenGlobal, 300, 0), 1000);   //0, 0), 1000);
          
         }  
     })  
@@ -517,9 +512,37 @@ function getPlaylistsList(access_token, userId, offset) {
 
 }
 
-function getPlaylist(access_token, ndx) {
+function timerExpire(access_token, ndx, offset) {
+    var limit = 100;
+    console.log("CALLING timerExpire()!!!!!");
+    //PlaylistsExporter.export(this.props.access_token, access_token, ndx);
+    getPlaylist(access_token, ndx, offset);
+    console.log("totalTracks=" + totalTracks);
+    
+    offset = offset + limit;   // track offset within playlist
+    if (offset < totalTracks) 
+      setTimeout(timerExpire.bind(null, access_token, ndx, offset), 1000);  // continue getting tracks from current playlist
+    else {
+      if ((ndx+1) < playlistCountGlobal) {
+        totalTracks = 0;
+        setTimeout(timerExpire.bind(null, access_token, ndx+1, 0), 1000);  // next playlist
+      }  
+    }  
+}
+
+function getPlaylist(access_token, ndx, offset) {
+
+  var limit = 100;
+    //    for (var offset = 0; offset < playlist.tracks.total; offset = offset + limit) {
+    //      requests.push(
+    //        window.Helpers.apiCall(playlist.tracks.href.split('?')[0] + '?offset=' + offset + '&limit=' + limit, access_token)
+    //      )
+    //      //console.log("REQ TRACKS FOR PLAYLIST " + playlist.name);
+    //      doDelay(1000);
+    //    }
   
-  var url = playlistsGlobal[ndx].tracks.href.split('?')[0];                      
+  
+  var url = playlistsGlobal[ndx].tracks.href.split('?')[0] + '?offset=' + offset + '&limit=' + limit;                      
   var retVal = $.ajax({
       url: url,
       headers: {
@@ -529,19 +552,20 @@ function getPlaylist(access_token, ndx) {
     .done(function(data) {
         tempGlobal = data;
         //console.log("data=" + JSON.stringify(data));
-        var totalTracks = data.total;  // number of tracks in all pages
+        totalTracks = data.total;  // number of tracks in all pages
         var numTracks; // number of tracks in this page
       
-        if (totalTracks > 100)
-          numTracks = 100;
+        if (totalTracks > (offset + limit))
+          numTracks = limit;
         else
-          numTracks = totalTracks;
+          numTracks = totalTracks - offset;
         // will need to call api to get next page of tracks if more than 100
         console.log("plist name = " + data.name);
         console.log("numTracks = " + numTracks);
         for (var i=0; i<numTracks; i++) {          
           console.log("track=" + data.items[i].track.track_number + " " + data.items[i].track.name);
-        }
+        }  
+      
     })  
     .fail(function (jqXHR, textStatus) {
         if (jqXHR.status == 401) {
@@ -562,6 +586,7 @@ function getPlaylist(access_token, ndx) {
       })
   
   doDelay(1000);
+  return(totalTracks);
 
 }
 
