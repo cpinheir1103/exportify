@@ -434,7 +434,30 @@ var totalTracks = 0;
 var tempGlobal;
 var ratelimitGlobal;
 
+var function_queue = [];         
 
+// pushes function (with or w/o arguments) onto queue for calling later
+function funcQPush(func) {          
+        function_queue.push(func);            
+}
+
+// gets next avail function (with or w/o arguments) from queue and calls it immediately.
+function funcQGet(){
+    // remove function from queue and call it
+    var func = function_queue.shift();
+    func();
+}
+
+function initIt() {
+  funcQPush(testIt.bind(null, "cool"));
+  funcQPush(testIt.bind(null, "beans"));
+  funcQGet();
+  funcQGet();
+}
+
+function testIt(txt) {
+  console.log("txt=" + txt);
+}   
 
 function getUserId(access_token) {  
   var url = "https://api.spotify.com/v1/me";
@@ -493,7 +516,10 @@ function getPlaylistsList(access_token, userId, offset) {
             //return;
           }
           
-          setTimeout(timerExpire.bind(null, accessTokenGlobal, 300, 0), 1000);   //0, 0), 1000);
+          //setTimeout(timerExpire.bind(null, accessTokenGlobal, 300, 0), 1000);   //0, 0), 1000);
+          funcQPush(timerExpire.bind(null, accessTokenGlobal, 300, 0));   // 0, 0), 1000));
+          setTimeout(function(){ funcQGet(); }, 1000);
+          
          
         }  
     })  
